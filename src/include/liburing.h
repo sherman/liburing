@@ -151,6 +151,8 @@ struct io_uring_probe *io_uring_get_probe(void);
  */
 void io_uring_free_probe(struct io_uring_probe *probe);
 
+int io_uring_opcode_supported_panama(const struct io_uring_probe *p, int op);
+
 static inline int io_uring_opcode_supported(const struct io_uring_probe *p,
 					    int op)
 {
@@ -280,6 +282,8 @@ int __io_uring_get_cqe(struct io_uring *ring,
 		&(ring)->cq.cqes[io_uring_cqe_index(ring, head, (ring)->cq.ring_mask)] : NULL)); \
 	     head++)							\
 
+void io_uring_cq_advance_panama(struct io_uring *ring, unsigned nr);
+
 /*
  * Must be called after io_uring_for_each_cqe()
  */
@@ -297,6 +301,8 @@ static inline void io_uring_cq_advance(struct io_uring *ring,
 	}
 }
 
+void io_uring_cqe_seen_panama(struct io_uring *ring, struct io_uring_cqe *cqe);
+
 /*
  * Must be called after io_uring_{peek,wait}_cqe() after the cqe has
  * been processed by the application.
@@ -312,6 +318,8 @@ static inline void io_uring_cqe_seen(struct io_uring *ring,
  * Command prep helpers
  */
 
+void io_uring_sqe_set_data_panama(struct io_uring_sqe *sqe, void *data);
+
 /*
  * Associate pointer @data with the sqe, for later retrieval from the cqe
  * at command completion time with io_uring_cqe_get_data().
@@ -321,10 +329,14 @@ static inline void io_uring_sqe_set_data(struct io_uring_sqe *sqe, void *data)
 	sqe->user_data = (unsigned long) data;
 }
 
+void *io_uring_cqe_get_data_panama(const struct io_uring_cqe *cqe);
+
 static inline void *io_uring_cqe_get_data(const struct io_uring_cqe *cqe)
 {
 	return (void *) (uintptr_t) cqe->user_data;
 }
+
+void io_uring_sqe_set_data64_panama(struct io_uring_sqe *sqe, __u64 data);
 
 /*
  * Assign a 64-bit value to this sqe, which can get retrieved at completion
@@ -337,6 +349,8 @@ static inline void io_uring_sqe_set_data64(struct io_uring_sqe *sqe,
 	sqe->user_data = data;
 }
 
+__u64 io_uring_cqe_get_data64_panama(const struct io_uring_cqe *cqe);
+
 static inline __u64 io_uring_cqe_get_data64(const struct io_uring_cqe *cqe)
 {
 	return cqe->user_data;
@@ -347,11 +361,15 @@ static inline __u64 io_uring_cqe_get_data64(const struct io_uring_cqe *cqe)
  */
 #define LIBURING_HAVE_DATA64
 
+void io_uring_sqe_set_flags_panama(struct io_uring_sqe *sqe, unsigned flags);
+
 static inline void io_uring_sqe_set_flags(struct io_uring_sqe *sqe,
 					  unsigned flags)
 {
 	sqe->flags = (__u8) flags;
 }
+
+void __io_uring_set_target_fixed_file_panama(struct io_uring_sqe *sqe, unsigned int file_index);
 
 static inline void __io_uring_set_target_fixed_file(struct io_uring_sqe *sqe,
 						    unsigned int file_index)
@@ -359,6 +377,8 @@ static inline void __io_uring_set_target_fixed_file(struct io_uring_sqe *sqe,
 	/* 0 means no fixed files, indexes should be encoded as "index + 1" */
 	sqe->file_index = file_index + 1;
 }
+
+void io_uring_prep_rw_panama(int op, struct io_uring_sqe *sqe, int fd, const void *addr, unsigned len, __u64 offset);
 
 static inline void io_uring_prep_rw(int op, struct io_uring_sqe *sqe, int fd,
 				    const void *addr, unsigned len,
@@ -378,6 +398,16 @@ static inline void io_uring_prep_rw(int op, struct io_uring_sqe *sqe, int fd,
 	sqe->addr3 = 0;
 	sqe->__pad2[0] = 0;
 }
+
+void io_uring_prep_splice_panama(
+    struct io_uring_sqe *sqe,
+    int fd_in,
+    int64_t off_in,
+    int fd_out,
+    int64_t off_out,
+	unsigned int nbytes,
+	unsigned int splice_flags
+);
 
 /**
  * @pre Either fd_in or fd_out must be a pipe.
@@ -414,6 +444,14 @@ static inline void io_uring_prep_splice(struct io_uring_sqe *sqe,
 	sqe->splice_flags = splice_flags;
 }
 
+void io_uring_prep_tee_panama(
+    struct io_uring_sqe *sqe,
+    int fd_in,
+    int fd_out,
+    unsigned int nbytes,
+    unsigned int splice_flags
+);
+
 static inline void io_uring_prep_tee(struct io_uring_sqe *sqe,
 				     int fd_in, int fd_out,
 				     unsigned int nbytes,
@@ -425,12 +463,29 @@ static inline void io_uring_prep_tee(struct io_uring_sqe *sqe,
 	sqe->splice_flags = splice_flags;
 }
 
+void io_uring_prep_readv_panama(
+    struct io_uring_sqe *sqe,
+    int fd,
+	const struct iovec *iovecs,
+    unsigned nr_vecs,
+    __u64 offset
+);
+
 static inline void io_uring_prep_readv(struct io_uring_sqe *sqe, int fd,
 				       const struct iovec *iovecs,
 				       unsigned nr_vecs, __u64 offset)
 {
 	io_uring_prep_rw(IORING_OP_READV, sqe, fd, iovecs, nr_vecs, offset);
 }
+
+void io_uring_prep_readv2_panama(
+    struct io_uring_sqe *sqe,
+    int fd,
+    const struct iovec *iovecs,
+    unsigned nr_vecs,
+    __u64 offset,
+    int flags
+);
 
 static inline void io_uring_prep_readv2(struct io_uring_sqe *sqe, int fd,
 				       const struct iovec *iovecs,
@@ -441,6 +496,15 @@ static inline void io_uring_prep_readv2(struct io_uring_sqe *sqe, int fd,
 	sqe->rw_flags = flags;
 }
 
+void io_uring_prep_read_fixed_panama(
+    struct io_uring_sqe *sqe,
+    int fd,
+	void *buf,
+	unsigned nbytes,
+	__u64 offset,
+	int buf_index
+);
+
 static inline void io_uring_prep_read_fixed(struct io_uring_sqe *sqe, int fd,
 					    void *buf, unsigned nbytes,
 					    __u64 offset, int buf_index)
@@ -449,12 +513,29 @@ static inline void io_uring_prep_read_fixed(struct io_uring_sqe *sqe, int fd,
 	sqe->buf_index = (__u16) buf_index;
 }
 
+void io_uring_prep_writev_panama(
+    struct io_uring_sqe *sqe,
+    int fd,
+    const struct iovec *iovecs,
+    unsigned nr_vecs,
+    __u64 offset
+);
+
 static inline void io_uring_prep_writev(struct io_uring_sqe *sqe, int fd,
 					const struct iovec *iovecs,
 					unsigned nr_vecs, __u64 offset)
 {
 	io_uring_prep_rw(IORING_OP_WRITEV, sqe, fd, iovecs, nr_vecs, offset);
 }
+
+void io_uring_prep_writev2_panama(
+    struct io_uring_sqe *sqe,
+    int fd,
+    const struct iovec *iovecs,
+    unsigned nr_vecs,
+    __u64 offset,
+    int flags
+);
 
 static inline void io_uring_prep_writev2(struct io_uring_sqe *sqe, int fd,
 				       const struct iovec *iovecs,
@@ -464,6 +545,15 @@ static inline void io_uring_prep_writev2(struct io_uring_sqe *sqe, int fd,
 	io_uring_prep_writev(sqe, fd, iovecs, nr_vecs, offset);
 	sqe->rw_flags = flags;
 }
+
+void io_uring_prep_write_fixed_panama(
+    struct io_uring_sqe *sqe,
+    int fd,
+    const void *buf,
+    unsigned nbytes,
+    __u64 offset,
+    int buf_index
+);
 
 static inline void io_uring_prep_write_fixed(struct io_uring_sqe *sqe, int fd,
 					     const void *buf, unsigned nbytes,
@@ -681,10 +771,14 @@ static inline void io_uring_prep_openat_direct(struct io_uring_sqe *sqe,
 	__io_uring_set_target_fixed_file(sqe, file_index);
 }
 
+void io_uring_prep_close_panama(struct io_uring_sqe *sqe, int fd);
+
 static inline void io_uring_prep_close(struct io_uring_sqe *sqe, int fd)
 {
 	io_uring_prep_rw(IORING_OP_CLOSE, sqe, fd, NULL, 0, 0);
 }
+
+void io_uring_prep_close_direct_panama(struct io_uring_sqe *sqe, unsigned file_index);
 
 static inline void io_uring_prep_close_direct(struct io_uring_sqe *sqe,
 					      unsigned file_index)
@@ -693,11 +787,15 @@ static inline void io_uring_prep_close_direct(struct io_uring_sqe *sqe,
 	__io_uring_set_target_fixed_file(sqe, file_index);
 }
 
+void io_uring_prep_read_panama(struct io_uring_sqe *sqe, int fd, void *buf, unsigned nbytes, __u64 offset);
+
 static inline void io_uring_prep_read(struct io_uring_sqe *sqe, int fd,
 				      void *buf, unsigned nbytes, __u64 offset)
 {
 	io_uring_prep_rw(IORING_OP_READ, sqe, fd, buf, nbytes, offset);
 }
+
+void io_uring_prep_write_panama(struct io_uring_sqe *sqe, int fd, const void *buf, unsigned nbytes, __u64 offset);
 
 static inline void io_uring_prep_write(struct io_uring_sqe *sqe, int fd,
 				       const void *buf, unsigned nbytes,
@@ -707,6 +805,16 @@ static inline void io_uring_prep_write(struct io_uring_sqe *sqe, int fd,
 }
 
 struct statx;
+
+void io_uring_prep_statx_panama(
+    struct io_uring_sqe *sqe,
+    int dfd,
+	const char *path,
+	int flags,
+	unsigned mask,
+	struct statx *statxbuf
+);
+
 static inline void io_uring_prep_statx(struct io_uring_sqe *sqe, int dfd,
 				const char *path, int flags, unsigned mask,
 				struct statx *statxbuf)
@@ -879,6 +987,8 @@ static inline void io_uring_prep_epoll_ctl(struct io_uring_sqe *sqe, int epfd,
 				(__u32) op, (__u32) fd);
 }
 
+void io_uring_prep_provide_buffers_panama(struct io_uring_sqe *sqe, void *addr, int len, int nr, int bgid, int bid);
+
 static inline void io_uring_prep_provide_buffers(struct io_uring_sqe *sqe,
 						 void *addr, int len, int nr,
 						 int bgid, int bid)
@@ -888,12 +998,16 @@ static inline void io_uring_prep_provide_buffers(struct io_uring_sqe *sqe,
 	sqe->buf_group = (__u16) bgid;
 }
 
+void io_uring_prep_remove_buffers_panama(struct io_uring_sqe *sqe, int nr, int bgid);
+
 static inline void io_uring_prep_remove_buffers(struct io_uring_sqe *sqe,
 						int nr, int bgid)
 {
 	io_uring_prep_rw(IORING_OP_REMOVE_BUFFERS, sqe, nr, NULL, 0, 0);
 	sqe->buf_group = (__u16) bgid;
 }
+
+void io_uring_prep_shutdown_paname(struct io_uring_sqe *sqe, int fd, int how);
 
 static inline void io_uring_prep_shutdown(struct io_uring_sqe *sqe, int fd,
 					  int how)
@@ -924,6 +1038,8 @@ static inline void io_uring_prep_renameat(struct io_uring_sqe *sqe, int olddfd,
 	sqe->rename_flags = (__u32) flags;
 }
 
+void io_uring_prep_rename_panama(struct io_uring_sqe *sqe, const char *oldpath, const char *newpath);
+
 static inline void io_uring_prep_rename(struct io_uring_sqe *sqe,
 					  const char *oldpath, const char *newpath)
 {
@@ -944,6 +1060,8 @@ static inline void io_uring_prep_mkdirat(struct io_uring_sqe *sqe, int dfd,
 	io_uring_prep_rw(IORING_OP_MKDIRAT, sqe, dfd, path, mode, 0);
 }
 
+void io_uring_prep_mkdir_panama(struct io_uring_sqe *sqe, const char *path, mode_t mode);
+
 static inline void io_uring_prep_mkdir(struct io_uring_sqe *sqe,
 					const char *path, mode_t mode)
 {
@@ -957,6 +1075,8 @@ static inline void io_uring_prep_symlinkat(struct io_uring_sqe *sqe,
 	io_uring_prep_rw(IORING_OP_SYMLINKAT, sqe, newdirfd, target, 0,
 				(uint64_t) (uintptr_t) linkpath);
 }
+
+void io_uring_prep_symlink_panama(struct io_uring_sqe *sqe, const char *target, const char *linkpath);
 
 static inline void io_uring_prep_symlink(struct io_uring_sqe *sqe,
 					   const char *target, const char *linkpath)
@@ -972,6 +1092,8 @@ static inline void io_uring_prep_linkat(struct io_uring_sqe *sqe, int olddfd,
 				(uint64_t) (uintptr_t) newpath);
 	sqe->hardlink_flags = (__u32) flags;
 }
+
+void io_uring_prep_link_panama(struct io_uring_sqe *sqe, const char *oldpath, const char *newpath, int flags);
 
 static inline void io_uring_prep_link(struct io_uring_sqe *sqe,
 					const char *oldpath, const char *newpath, int flags)
@@ -1063,6 +1185,8 @@ static inline void io_uring_prep_socket_direct_alloc(struct io_uring_sqe *sqe,
 	__io_uring_set_target_fixed_file(sqe, IORING_FILE_INDEX_ALLOC - 1);
 }
 
+unsigned io_uring_sq_ready_panama(const struct io_uring *ring);
+
 /*
  * Returns number of unconsumed (if SQPOLL) or unsubmitted entries exist in
  * the SQ ring
@@ -1083,6 +1207,8 @@ static inline unsigned io_uring_sq_ready(const struct io_uring *ring)
 	return ring->sq.sqe_tail - khead;
 }
 
+unsigned io_uring_sq_space_left_panama(const struct io_uring *ring);
+
 /*
  * Returns how much space is left in the SQ ring.
  */
@@ -1090,6 +1216,8 @@ static inline unsigned io_uring_sq_space_left(const struct io_uring *ring)
 {
 	return ring->sq.ring_entries - io_uring_sq_ready(ring);
 }
+
+int io_uring_sqring_wait_panama(struct io_uring *ring);
 
 /*
  * Only applicable when using SQPOLL - allows the caller to wait for space
@@ -1108,6 +1236,8 @@ static inline int io_uring_sqring_wait(struct io_uring *ring)
 	return __io_uring_sqring_wait(ring);
 }
 
+unsigned io_uring_cq_ready_panama(const struct io_uring *ring);
+
 /*
  * Returns how many unconsumed entries are ready in the CQ ring
  */
@@ -1115,6 +1245,8 @@ static inline unsigned io_uring_cq_ready(const struct io_uring *ring)
 {
 	return io_uring_smp_load_acquire(ring->cq.ktail) - *ring->cq.khead;
 }
+
+bool io_uring_cq_has_overflow_panama(const struct io_uring *ring);
 
 /*
  * Returns true if there are overflow entries waiting to be flushed onto
@@ -1124,6 +1256,8 @@ static inline bool io_uring_cq_has_overflow(const struct io_uring *ring)
 {
 	return IO_URING_READ_ONCE(*ring->sq.kflags) & IORING_SQ_CQ_OVERFLOW;
 }
+
+bool io_uring_cq_eventfd_enabled_panama(const struct io_uring *ring);
 
 /*
  * Returns true if the eventfd notification is currently enabled
@@ -1135,6 +1269,8 @@ static inline bool io_uring_cq_eventfd_enabled(const struct io_uring *ring)
 
 	return !(*ring->cq.kflags & IORING_CQ_EVENTFD_DISABLED);
 }
+
+int io_uring_cq_eventfd_toggle_panama(struct io_uring *ring, bool enabled);
 
 /*
  * Toggle eventfd notification on or off, if an eventfd is registered with
@@ -1163,6 +1299,8 @@ static inline int io_uring_cq_eventfd_toggle(struct io_uring *ring,
 	return 0;
 }
 
+int io_uring_wait_cqe_nr_panama(struct io_uring *ring, struct io_uring_cqe **cqe_ptr, unsigned wait_nr);
+
 /*
  * Return an IO completion, waiting for 'wait_nr' completions if one isn't
  * readily available. Returns 0 with cqe_ptr filled in on success, -errno on
@@ -1174,6 +1312,8 @@ static inline int io_uring_wait_cqe_nr(struct io_uring *ring,
 {
 	return __io_uring_get_cqe(ring, cqe_ptr, 0, wait_nr, NULL);
 }
+
+int __io_uring_peek_cqe_panama(struct io_uring *ring, struct io_uring_cqe **cqe_ptr, unsigned *nr_available);
 
 /*
  * Internal helper, don't use directly in applications. Use one of the
@@ -1222,6 +1362,8 @@ static inline int __io_uring_peek_cqe(struct io_uring *ring,
 	return err;
 }
 
+int io_uring_peek_cqe_panama(struct io_uring *ring, struct io_uring_cqe **cqe_ptr);
+
 /*
  * Return an IO completion, if one is readily available. Returns 0 with
  * cqe_ptr filled in on success, -errno on failure.
@@ -1235,6 +1377,8 @@ static inline int io_uring_peek_cqe(struct io_uring *ring,
 	return io_uring_wait_cqe_nr(ring, cqe_ptr, 0);
 }
 
+int io_uring_wait_cqe_panama(struct io_uring *ring, struct io_uring_cqe **cqe_ptr);
+
 /*
  * Return an IO completion, waiting for it if necessary. Returns 0 with
  * cqe_ptr filled in on success, -errno on failure.
@@ -1247,6 +1391,8 @@ static inline int io_uring_wait_cqe(struct io_uring *ring,
 
 	return io_uring_wait_cqe_nr(ring, cqe_ptr, 1);
 }
+
+struct io_uring_sqe *_io_uring_get_sqe_panama(struct io_uring *ring);
 
 /*
  * Return an sqe to fill. Application must later call io_uring_submit()
@@ -1279,6 +1425,8 @@ static inline struct io_uring_sqe *_io_uring_get_sqe(struct io_uring *ring)
 	return NULL;
 }
 
+int io_uring_buf_ring_mask_panama(__u32 ring_entries);
+
 /*
  * Return the appropriate mask for a buffer ring of size 'ring_entries'
  */
@@ -1287,10 +1435,21 @@ static inline int io_uring_buf_ring_mask(__u32 ring_entries)
 	return ring_entries - 1;
 }
 
+void io_uring_buf_ring_init_panama(struct io_uring_buf_ring *br);
+
 static inline void io_uring_buf_ring_init(struct io_uring_buf_ring *br)
 {
 	br->tail = 0;
 }
+
+void io_uring_buf_ring_add_panama(
+    struct io_uring_buf_ring *br,
+    void *addr,
+    unsigned int len,
+	unsigned short bid,
+	int mask,
+	int buf_offset
+);
 
 /*
  * Assign 'buf' with the addr/len/buffer ID supplied
@@ -1307,6 +1466,8 @@ static inline void io_uring_buf_ring_add(struct io_uring_buf_ring *br,
 	buf->bid = bid;
 }
 
+void io_uring_buf_ring_advance_panama(struct io_uring_buf_ring *br, int count);
+
 /*
  * Make 'count' new buffers visible to the kernel. Called after
  * io_uring_buf_ring_add() has been called 'count' times to fill in new
@@ -1319,6 +1480,8 @@ static inline void io_uring_buf_ring_advance(struct io_uring_buf_ring *br,
 
 	io_uring_smp_store_release(&br->tail, new_tail);
 }
+
+void io_uring_buf_ring_cq_advance_panama(struct io_uring *ring, struct io_uring_buf_ring *br, int count);
 
 /*
  * Make 'count' new buffers visible to the kernel while at the same time
@@ -1335,14 +1498,7 @@ static inline void io_uring_buf_ring_cq_advance(struct io_uring *ring,
 	io_uring_cq_advance(ring, count);
 }
 
-#ifndef LIBURING_INTERNAL
-static inline struct io_uring_sqe *io_uring_get_sqe(struct io_uring *ring)
-{
-	return _io_uring_get_sqe(ring);
-}
-#else
 struct io_uring_sqe *io_uring_get_sqe(struct io_uring *ring);
-#endif
 
 ssize_t io_uring_mlock_size(unsigned entries, unsigned flags);
 ssize_t io_uring_mlock_size_params(unsigned entries, struct io_uring_params *p);
