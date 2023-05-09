@@ -632,6 +632,8 @@ static inline void io_uring_prep_fsync(struct io_uring_sqe *sqe, int fd,
 	sqe->fsync_flags = fsync_flags;
 }
 
+void io_uring_prep_nop_panama(struct io_uring_sqe *sqe);
+
 static inline void io_uring_prep_nop(struct io_uring_sqe *sqe)
 {
 	io_uring_prep_rw(IORING_OP_NOP, sqe, -1, NULL, 0, 0);

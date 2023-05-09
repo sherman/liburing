@@ -305,3 +305,8 @@ void io_uring_buf_ring_cq_advance_panama(struct io_uring *ring, struct io_uring_
 {
     io_uring_buf_ring_cq_advance(ring, br, count);
 }
+
+void io_uring_prep_nop_panama(struct io_uring_sqe *sqe)
+{
+    io_uring_prep_nop(sqe);
+}
